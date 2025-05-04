@@ -4,7 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 
-
+// --- CLASS: User ---
 public class User {
     private String name;
     private List<String> courses;
@@ -47,9 +47,20 @@ public class User {
     public String toString() {
         return name + " - " + String.join(", ", courses);
     }
+
+    public String toCSV() {
+        return name + ";" + String.join("|", courses) + ";" + preferredTime + ";" + learningStyle;
+    }
+
+    public static User fromCSV(String csv) {
+        String[] parts = csv.split(";");
+        String name = parts[0];
+        List<String> courses = Arrays.asList(parts[1].split("\\|"));
+        return new User(name, courses, parts[2], parts[3]);
+    }
 }
 
-
+// --- CLASS: StudyGroup ---
 public class StudyGroup {
     private String groupName;
     private Set<User> members;
@@ -75,7 +86,7 @@ public class StudyGroup {
     public Set<User> getMembers() { return members; }
 }
 
-
+// --- CLASS: MatchEngine ---
 public class MatchEngine {
     public List<User> findMatches(User user, List<User> allUsers) {
         List<User> matches = new ArrayList<>();
@@ -91,7 +102,7 @@ public class MatchEngine {
     }
 }
 
-
+// --- CLASS: GroupManager ---
 public class GroupManager {
     private List<StudyGroup> groups;
 
@@ -127,15 +138,17 @@ public class GroupManager {
     }
 }
 
-
+// --- CLASS: StudyMatcherGUI ---
 class StudyMatcherGUI {
     private JFrame frame;
     private DefaultListModel<User> usersList;
     private List<User> users;
+    private final String FILE_PATH = "users.txt";
 
     public StudyMatcherGUI() {
         users = new ArrayList<>();
         usersList = new DefaultListModel<>();
+        loadUsersFromFile();
 
         frame = new JFrame("Study Group Matcher");
         frame.setSize(400, 500);
@@ -171,17 +184,45 @@ class StudyMatcherGUI {
         User user = new User(name.trim(), courses, preferredTime.trim(), learningStyle.trim());
         users.add(user);
         usersList.addElement(user);
+        saveUsersToFile();
     }
 
     private void findMatches() {
         if (users.isEmpty()) return;
-        User selected = users.get(0); // Just for demo, first user only
+        User selected = users.get(0); // Demo: matches based on first user
         MatchEngine engine = new MatchEngine();
         List<User> matches = engine.findMatches(selected, users);
         JOptionPane.showMessageDialog(frame, "Matches: \n" + matches.toString());
     }
+
+    private void saveUsersToFile() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH))) {
+            for (User user : users) {
+                writer.write(user.toCSV());
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadUsersFromFile() {
+        File file = new File(FILE_PATH);
+        if (!file.exists()) return;
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                User user = User.fromCSV(line);
+                users.add(user);
+                usersList.addElement(user);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }
 
+// --- Main class ---
 public class MainApp {
     public static void main(String[] args) {
         new StudyMatcherGUI();
