@@ -143,33 +143,52 @@ class StudyMatcherGUI {
     private JFrame frame;
     private DefaultListModel<User> usersList;
     private List<User> users;
+    private GroupManager groupManager;
     private final String FILE_PATH = "users.txt";
+    private JComboBox<String> userDropdown;
 
     public StudyMatcherGUI() {
         users = new ArrayList<>();
         usersList = new DefaultListModel<>();
+        groupManager = new GroupManager();
         loadUsersFromFile();
 
         frame = new JFrame("Study Group Matcher");
-        frame.setSize(400, 500);
+        frame.setSize(500, 600);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
 
         JButton addUserBtn = new JButton("Register User");
-        addUserBtn.addActionListener(e -> registerUser());
-
         JButton matchBtn = new JButton("Find Matches");
+        JButton createGroupBtn = new JButton("Create Group");
+        JButton joinGroupBtn = new JButton("Join Group");
+        JButton viewGroupBtn = new JButton("View My Group");
+
+        addUserBtn.addActionListener(e -> registerUser());
         matchBtn.addActionListener(e -> findMatches());
+        createGroupBtn.addActionListener(e -> createGroup());
+        joinGroupBtn.addActionListener(e -> joinGroup());
+        viewGroupBtn.addActionListener(e -> viewGroup());
 
         JList<User> displayList = new JList<>(usersList);
         JScrollPane scrollPane = new JScrollPane(displayList);
 
         JPanel panel = new JPanel();
+        panel.setLayout(new GridLayout(0, 1));
         panel.add(addUserBtn);
+
+        userDropdown = new JComboBox<>();
+        updateUserDropdown();
+        panel.add(new JLabel("Select User:"));
+        panel.add(userDropdown);
+
         panel.add(matchBtn);
+        panel.add(createGroupBtn);
+        panel.add(joinGroupBtn);
+        panel.add(viewGroupBtn);
 
         frame.add(scrollPane, BorderLayout.CENTER);
-        frame.add(panel, BorderLayout.SOUTH);
+        frame.add(panel, BorderLayout.EAST);
 
         frame.setVisible(true);
     }
@@ -184,15 +203,64 @@ class StudyMatcherGUI {
         User user = new User(name.trim(), courses, preferredTime.trim(), learningStyle.trim());
         users.add(user);
         usersList.addElement(user);
+        updateUserDropdown();
         saveUsersToFile();
     }
 
+    private void updateUserDropdown() {
+        if (userDropdown == null) return;
+        userDropdown.removeAllItems();
+        for (User u : users) {
+            userDropdown.addItem(u.getName());
+        }
+    }
+
+    private User getSelectedUser() {
+        String selectedName = (String) userDropdown.getSelectedItem();
+        if (selectedName == null) return null;
+        for (User u : users) {
+            if (u.getName().equalsIgnoreCase(selectedName)) return u;
+        }
+        return null;
+    }
+
     private void findMatches() {
-        if (users.isEmpty()) return;
-        User selected = users.get(0); // Demo: matches based on first user
+        User selected = getSelectedUser();
+        if (selected == null) return;
         MatchEngine engine = new MatchEngine();
         List<User> matches = engine.findMatches(selected, users);
-        JOptionPane.showMessageDialog(frame, "Matches: \n" + matches.toString());
+        JOptionPane.showMessageDialog(frame, "Matches for " + selected.getName() + ": \n" + matches);
+    }
+
+    private void createGroup() {
+        User user = getSelectedUser();
+        if (user == null) return;
+        String groupName = JOptionPane.showInputDialog("Enter new group name:");
+        groupManager.createGroup(groupName.trim(), user);
+        JOptionPane.showMessageDialog(frame, "Group created successfully.");
+    }
+
+    private void joinGroup() {
+        User user = getSelectedUser();
+        if (user == null) return;
+        String groupName = JOptionPane.showInputDialog("Enter group name to join:");
+        groupManager.joinGroup(groupName.trim(), user);
+        JOptionPane.showMessageDialog(frame, "Joined group successfully.");
+    }
+
+    private void viewGroup() {
+        User user = getSelectedUser();
+        if (user == null) return;
+        StudyGroup group = groupManager.findGroupByUser(user);
+        if (group == null) {
+            JOptionPane.showMessageDialog(frame, "User is not in any group.");
+        } else {
+            StringBuilder sb = new StringBuilder("Group: " + group.getGroupName() + "\nMembers:\n");
+            for (User u : group.getMembers()) {
+                sb.append("- ").append(u.getName()).append("\n");
+            }
+            JOptionPane.showMessageDialog(frame, sb.toString());
+        }
     }
 
     private void saveUsersToFile() {
@@ -216,11 +284,13 @@ class StudyMatcherGUI {
                 users.add(user);
                 usersList.addElement(user);
             }
+            updateUserDropdown();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 }
+
 
 // --- Main class ---
 public class MainApp {
