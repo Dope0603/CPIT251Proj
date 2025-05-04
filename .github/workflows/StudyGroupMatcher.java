@@ -4,8 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 
-// --- CLASS: User ---
-public class User {
+class User {
     private String name;
     private List<String> courses;
     private String preferredTime;
@@ -19,34 +18,9 @@ public class User {
     }
 
     public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-
     public List<String> getCourses() { return courses; }
-    public void setCourses(List<String> courses) { this.courses = courses; }
-
     public String getPreferredTime() { return preferredTime; }
-    public void setPreferredTime(String preferredTime) { this.preferredTime = preferredTime; }
-
     public String getLearningStyle() { return learningStyle; }
-    public void setLearningStyle(String learningStyle) { this.learningStyle = learningStyle; }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        User user = (User) obj;
-        return Objects.equals(name, user.name);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name);
-    }
-
-    @Override
-    public String toString() {
-        return name + " - " + String.join(", ", courses);
-    }
 
     public String toCSV() {
         return name + ";" + String.join("|", courses) + ";" + preferredTime + ";" + learningStyle;
@@ -58,10 +32,14 @@ public class User {
         List<String> courses = Arrays.asList(parts[1].split("\\|"));
         return new User(name, courses, parts[2], parts[3]);
     }
+
+    @Override
+    public String toString() {
+        return name;
+    }
 }
 
-// --- CLASS: StudyGroup ---
-public class StudyGroup {
+class StudyGroup {
     private String groupName;
     private Set<User> members;
 
@@ -71,24 +49,15 @@ public class StudyGroup {
     }
 
     public boolean addMember(User user) {
-        if (user == null) return false;
         return members.add(user);
     }
 
     public boolean removeMember(User user) {
-        if (user == null) return false;
         return members.remove(user);
     }
 
     public String getGroupName() { return groupName; }
-    public void setGroupName(String groupName) { this.groupName = groupName; }
-
     public Set<User> getMembers() { return members; }
-
-    @Override
-    public String toString() {
-        return groupName + " (" + members.size() + " members)";
-    }
 
     public String toCSV() {
         StringBuilder sb = new StringBuilder();
@@ -119,13 +88,8 @@ public class StudyGroup {
     }
 }
 
-// --- CLASS: GroupManager ---
-public class GroupManager {
-    private List<StudyGroup> groups;
-
-    public GroupManager() {
-        this.groups = new ArrayList<>();
-    }
+class GroupManager {
+    private List<StudyGroup> groups = new ArrayList<>();
 
     public void createGroup(String name, User leader) {
         StudyGroup group = new StudyGroup(name);
@@ -138,27 +102,20 @@ public class GroupManager {
         if (group != null) group.addMember(user);
     }
 
-    public void leaveGroup(String name, User user) {
-        StudyGroup group = findGroupByName(name);
-        if (group != null) group.removeMember(user);
-    }
-
     public List<StudyGroup> getGroups() {
         return groups;
-    }
-
-    public StudyGroup findGroupByName(String name) {
-        for (StudyGroup group : groups) {
-            if (group.getGroupName().equalsIgnoreCase(name)) {
-                return group;
-            }
-        }
-        return null;
     }
 
     public StudyGroup findGroupByUser(User user) {
         for (StudyGroup group : groups) {
             if (group.getMembers().contains(user)) return group;
+        }
+        return null;
+    }
+
+    public StudyGroup findGroupByName(String name) {
+        for (StudyGroup group : groups) {
+            if (group.getGroupName().equalsIgnoreCase(name)) return group;
         }
         return null;
     }
@@ -169,8 +126,7 @@ public class GroupManager {
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                StudyGroup group = StudyGroup.fromCSV(line, userPool);
-                groups.add(group);
+                groups.add(StudyGroup.fromCSV(line, userPool));
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -189,13 +145,28 @@ public class GroupManager {
     }
 }
 
-// --- CLASS: StudyMatcherGUI ---
+class MatchEngine {
+    public List<User> findMatches(User user, List<User> allUsers) {
+        List<User> matches = new ArrayList<>();
+        for (User u : allUsers) {
+            if (!u.getName().equals(user.getName()) &&
+                !Collections.disjoint(u.getCourses(), user.getCourses()) &&
+                u.getPreferredTime().equalsIgnoreCase(user.getPreferredTime()) &&
+                u.getLearningStyle().equalsIgnoreCase(user.getLearningStyle())) {
+                matches.add(u);
+            }
+        }
+        return matches;
+    }
+}
+
 class StudyMatcherGUI {
     private JFrame frame;
     private DefaultListModel<User> usersList;
     private List<User> users;
     private GroupManager groupManager;
-    private final String FILE_PATH = "users.txt";
+    private final String USERS_FILE = "users.txt";
+    private final String GROUPS_FILE = "groups.txt";
     private JComboBox<String> userDropdown;
 
     public StudyMatcherGUI() {
@@ -203,6 +174,7 @@ class StudyMatcherGUI {
         usersList = new DefaultListModel<>();
         groupManager = new GroupManager();
         loadUsersFromFile();
+        groupManager.loadGroupsFromFile(GROUPS_FILE, users);
 
         frame = new JFrame("Study Group Matcher");
         frame.setSize(500, 600);
@@ -248,7 +220,19 @@ class StudyMatcherGUI {
         String name = JOptionPane.showInputDialog("Enter name:");
         String coursesStr = JOptionPane.showInputDialog("Enter courses (comma-separated):");
         String preferredTime = JOptionPane.showInputDialog("Preferred time:");
-        String learningStyle = JOptionPane.showInputDialog("Learning style:");
+
+        String[] styleOptions = {"Slow and Steady", "Normal Pace", "Quick"};
+        String learningStyle = (String) JOptionPane.showInputDialog(
+            frame,
+            "Select learning style:",
+            "Learning Style",
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            styleOptions,
+            styleOptions[1]
+        );
+
+        if (learningStyle == null) return;
 
         List<String> courses = Arrays.asList(coursesStr.split(","));
         User user = new User(name.trim(), courses, preferredTime.trim(), learningStyle.trim());
@@ -288,15 +272,40 @@ class StudyMatcherGUI {
         if (user == null) return;
         String groupName = JOptionPane.showInputDialog("Enter new group name:");
         groupManager.createGroup(groupName.trim(), user);
+        groupManager.saveGroupsToFile(GROUPS_FILE);
         JOptionPane.showMessageDialog(frame, "Group created successfully.");
     }
 
     private void joinGroup() {
         User user = getSelectedUser();
         if (user == null) return;
-        String groupName = JOptionPane.showInputDialog("Enter group name to join:");
-        groupManager.joinGroup(groupName.trim(), user);
-        JOptionPane.showMessageDialog(frame, "Joined group successfully.");
+
+        List<StudyGroup> groups = groupManager.getGroups();
+        if (groups.isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "No groups available to join.");
+            return;
+        }
+
+        String[] groupNames = groups.stream().map(StudyGroup::getGroupName).toArray(String[]::new);
+        String selectedGroup = (String) JOptionPane.showInputDialog(
+            frame,
+            "Select a group to join:",
+            "Join Group",
+            JOptionPane.PLAIN_MESSAGE,
+            null,
+            groupNames,
+            groupNames[0]
+        );
+
+        if (selectedGroup != null) {
+            StudyGroup currentGroup = groupManager.findGroupByUser(user);
+            if (currentGroup != null) {
+                currentGroup.removeMember(user);
+            }
+            groupManager.joinGroup(selectedGroup, user);
+            groupManager.saveGroupsToFile(GROUPS_FILE);
+            JOptionPane.showMessageDialog(frame, "Joined group successfully.");
+        }
     }
 
     private void viewGroup() {
@@ -315,7 +324,7 @@ class StudyMatcherGUI {
     }
 
     private void saveUsersToFile() {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(FILE_PATH))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(USERS_FILE))) {
             for (User user : users) {
                 writer.write(user.toCSV());
                 writer.newLine();
@@ -326,7 +335,7 @@ class StudyMatcherGUI {
     }
 
     private void loadUsersFromFile() {
-        File file = new File(FILE_PATH);
+        File file = new File(USERS_FILE);
         if (!file.exists()) return;
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
@@ -342,8 +351,6 @@ class StudyMatcherGUI {
     }
 }
 
-
-// --- Main class ---
 public class MainApp {
     public static void main(String[] args) {
         new StudyMatcherGUI();
