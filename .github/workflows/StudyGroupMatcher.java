@@ -84,21 +84,38 @@ public class StudyGroup {
     public void setGroupName(String groupName) { this.groupName = groupName; }
 
     public Set<User> getMembers() { return members; }
-}
 
-// --- CLASS: MatchEngine ---
-public class MatchEngine {
-    public List<User> findMatches(User user, List<User> allUsers) {
-        List<User> matches = new ArrayList<>();
-        for (User u : allUsers) {
-            if (!u.equals(user) &&
-                !Collections.disjoint(u.getCourses(), user.getCourses()) &&
-                Objects.equals(u.getPreferredTime(), user.getPreferredTime()) &&
-                Objects.equals(u.getLearningStyle(), user.getLearningStyle())) {
-                matches.add(u);
+    @Override
+    public String toString() {
+        return groupName + " (" + members.size() + " members)";
+    }
+
+    public String toCSV() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(groupName).append(";");
+        List<String> names = new ArrayList<>();
+        for (User user : members) {
+            names.add(user.getName());
+        }
+        sb.append(String.join("|", names));
+        return sb.toString();
+    }
+
+    public static StudyGroup fromCSV(String line, List<User> userPool) {
+        String[] parts = line.split(";");
+        StudyGroup group = new StudyGroup(parts[0]);
+        if (parts.length > 1) {
+            String[] names = parts[1].split("\\|");
+            for (String name : names) {
+                for (User u : userPool) {
+                    if (u.getName().equalsIgnoreCase(name.trim())) {
+                        group.addMember(u);
+                        break;
+                    }
+                }
             }
         }
-        return matches;
+        return group;
     }
 }
 
@@ -116,12 +133,14 @@ public class GroupManager {
         groups.add(group);
     }
 
-    public void joinGroup(StudyGroup group, User user) {
-        group.addMember(user);
+    public void joinGroup(String name, User user) {
+        StudyGroup group = findGroupByName(name);
+        if (group != null) group.addMember(user);
     }
 
-    public void leaveGroup(StudyGroup group, User user) {
-        group.removeMember(user);
+    public void leaveGroup(String name, User user) {
+        StudyGroup group = findGroupByName(name);
+        if (group != null) group.removeMember(user);
     }
 
     public List<StudyGroup> getGroups() {
@@ -135,6 +154,38 @@ public class GroupManager {
             }
         }
         return null;
+    }
+
+    public StudyGroup findGroupByUser(User user) {
+        for (StudyGroup group : groups) {
+            if (group.getMembers().contains(user)) return group;
+        }
+        return null;
+    }
+
+    public void loadGroupsFromFile(String filePath, List<User> userPool) {
+        File file = new File(filePath);
+        if (!file.exists()) return;
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                StudyGroup group = StudyGroup.fromCSV(line, userPool);
+                groups.add(group);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void saveGroupsToFile(String filePath) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+            for (StudyGroup group : groups) {
+                writer.write(group.toCSV());
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
 
